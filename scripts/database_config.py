@@ -1,9 +1,11 @@
 import psycopg2
-from psycopg2.extras import execute_values
+from psycopg2.extras import execute_batch
 from psycopg2 import OperationalError
 import configparser
-from commands_sql import SQLC,SQLD
-from read_file import parse_products
+from commands_sql import SQLC
+import time
+import gc
+
 
 FALHA_OPERACAO = "FALHA AO OPERAR O BANCO DE DADOS"
 SUCESSO_CONEXAO = "SUCESSO AO CONECTAR AO BANCO DE DADOS"
@@ -21,7 +23,7 @@ def create_connection(autocommit = False, database_name='postgres'):
             password=config['database']['password']
         )
 
-        connection.autocommit = True
+        connection.autocommit = autocommit
 
         cursor = connection.cursor()        
         cursor.execute("SELECT version();")
@@ -72,44 +74,64 @@ def create_tables(connection):
     finally:
         connection[1].close()
 
-def insert_data(connection, products):
-    if (connection[0] == FALHA_OPERACAO):
-        return
+def insert_data(connection, data):
+    if connection[0] == FALHA_OPERACAO:
+        return FALHA_OPERACAO
     try:
         cursor = connection[1].cursor()
-        categorias_unicas = set()
-        #1º loop varre os produtos e filtra suas categorias, pois sua inserção vem primeiro
-        for produto in products:
-            for categoria in produto['categories']:
-                categorias_unicas.add((categoria['name'], categoria['id']))
-        #Inserção das categorias
-        for nome_categoria, id_categoria in categorias_unicas:
-            cursor.execute(SQLC.INSERE_CATEGORIAS,(id_categoria,nome_categoria))
-       
-        #2º Loop povoa todas as demais tabela, pois pode ser feita inserção direta    
-        for i in range(len(products)): 
-            actual_product = products[i]   
-            #Insere os produtos
-            actual_product_insert = [(actual_product['asin'],actual_product['title'],actual_product['group'],actual_product['salesrank'])] 
-            execute_values(cursor, SQLC.INSERE_PRODUTO,actual_product_insert, page_size=10000)
+
+        products = data[0]
+        reviews = data[1]
+        similar = data[2]
+        categories = data[3]
+        p_categories = data[4]
+
+        del data
+        gc.collect()
+
+        tempo_inicial = time.time()
+
+        # Inserção dos produtos
+        execute_batch(cursor, SQLC.INSERE_PRODUTO, products)
+        connection[1].commit()
         
-            #Insere os produtos e suas devidas categorias 
-            for categoria in actual_product['categories']:
-                actual_product_insert = [(actual_product['asin'],categoria['id'])]
-                execute_values(cursor,SQLC.INSERE_PRODUTO_CATEGORIA,actual_product_insert,page_size=10000)
+        del products
+        gc.collect()
 
-            #Insere os asins e seus similares
-            for i in range(len(actual_product['similar'])):
-                actual_product_insert = [(actual_product['asin'],actual_product['similar'][i])]
-                execute_values(cursor, SQLC.INSERE_PRODUTO_SIMILAR,actual_product_insert, page_size=10)
+        # Inserção das categorias
+        execute_batch(cursor, SQLC.INSERE_CATEGORIAS, categories)
+        connection[1].commit()
 
-            #Insere as avaliações e seus dados atrelados   
-            for i in range(len(actual_product['reviews'])):
-                actual_product_insert = [(actual_product['asin'],actual_product['reviews'][i]['customer'],actual_product['reviews'][i]['date'],actual_product['reviews'][i]['rating'],actual_product['reviews'][i]['votes'],actual_product['reviews'][i]['helpful'])]
-                execute_values(cursor, SQLC.INSERE_AVALIACOES,actual_product_insert, page_size=10000) 
-                
+        del categories
+        gc.collect()
+
+        # Inserção dos produtos e suas categorias
+        execute_batch(cursor, SQLC.INSERE_PRODUTO_CATEGORIA, p_categories)
+        connection[1].commit()
+        
+        del p_categories
+        gc.collect()
+
+        # Inserção dos produtos similares
+        execute_batch(cursor, SQLC.INSERE_PRODUTO_SIMILAR, similar)
+        connection[1].commit()
+        
+        del similar
+        gc.collect()
+
+        # Inserção das avaliações
+        execute_batch(cursor, SQLC.INSERE_AVALIACOES, reviews)
+        connection[1].commit()
+        
+        del reviews
+        gc.collect()
+
+        tempo_final = time.time()
+        print(f"Dados completamente inseridos no banco: {tempo_final - tempo_inicial:.2f}s")
+
         return SUCESSO_CRIAR_BANCO
-    except OperationalError as e:
+    except Exception as e:
+        print(e)
         return FALHA_OPERACAO, str(e)
     finally:
         cursor.close()

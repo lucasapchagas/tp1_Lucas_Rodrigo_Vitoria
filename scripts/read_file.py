@@ -32,8 +32,13 @@ def parse_review_line(line):
         'helpful': int(data[8])
     }
 
-def parse_products(file_path, output_path="output.json"):
+def parse_products(file_path):
     products = []
+    reviews = []
+    similar = set()
+    categories = set()
+    p_categories = set()
+
     product = {}
 
     with open(file_path, 'r', encoding="utf8") as file:
@@ -47,7 +52,13 @@ def parse_products(file_path, output_path="output.json"):
                     if 'categories' in product:
                         unique_categories = {tuple(d.items()): d for d in product['categories']}
                         product['categories'] = list(unique_categories.values())
-                    products.append(product)
+                    product_data = (
+                        product.get('asin', None), 
+                        product.get('title', None),
+                        product.get('group', None),
+                        product.get('salesrank', None)
+                    )
+                    products.append(product_data)
                 product = {'id': int(line.split()[1])}
             elif line.startswith("ASIN:"):
                 product['asin'] = line.split()[1]
@@ -58,23 +69,44 @@ def parse_products(file_path, output_path="output.json"):
             elif line.startswith("  salesrank:"):
                 product['salesrank'] = int(line.split()[1])
             elif line.startswith("  similar:"):
-                product['similar'] = line.split()[2:]
+                asin = product.get('asin', None)
+                if asin:
+                    for sim_asin in line.split()[2:]:
+                        similar.add((asin, sim_asin))
             elif line.startswith("  categories:"):
                 product['categories'] = []
             elif line.startswith("   |"):
-                product['categories'].extend(parse_category_line(line))
+                product_categories = parse_category_line(line)
+                product['categories'].extend(product_categories)
+                asin = product.get('asin', None)
+                if asin:
+                    for cat in product_categories:
+                        categories.add((cat['id'], cat['name']))
+                        p_categories.add((asin, cat['id']))
             elif line.startswith("  reviews:"):
                 product['reviews'] = []
             elif line.startswith("    "):
-                product['reviews'].append(parse_review_line(line))
+                review_data = parse_review_line(line)
+                review_data['asin'] = product.get('asin', None)
+                reviews.append((
+                    review_data['asin'],
+                    review_data['customer'],
+                    review_data['date'],
+                    review_data['rating'],
+                    review_data['votes'],
+                    review_data['helpful']
+                ))
 
-    if product:
+    if product and 'asin' in product:
         if 'categories' in product:
             unique_categories = {tuple(d.items()): d for d in product['categories']}
             product['categories'] = list(unique_categories.values())
-        products.append(product)
+        product_data = (
+            product.get('asin', None), 
+            product.get('title', None),
+            product.get('group', None),
+            product.get('salesrank', None)
+        )
+        products.append(product_data)
 
-    with open(output_path, 'w') as json_file:
-        json.dump(products, json_file, indent=2)
-
-    return products
+    return [products, reviews, list(similar), list(categories), list(p_categories)]

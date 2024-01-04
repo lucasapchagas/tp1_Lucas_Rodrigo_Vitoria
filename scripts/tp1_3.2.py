@@ -1,5 +1,8 @@
 from database_config import *
 import configparser
+import time
+from read_file import parse_products
+
 
 def main():
     config = configparser.ConfigParser()
@@ -9,15 +12,14 @@ def main():
     products_file = config['database']['fname']
 
     # Criar a database     
-    conexao = create_connection()
-    create_database(conexao, database_name)
+    create_database(create_connection(autocommit= True), database_name)
 
     # Criar as tabelas
-    create_tables(create_connection(False, database_name))
+    create_tables(create_connection(autocommit= False, database_name= database_name))
 
-    # Ler o arquivo de entrada e povoar as tabelas
-    products = parse_products(products_file)
-    insert_data(create_connection(False, database_name), products)
+    # Povoamente das tabelas e parsing dos produtos
+    insert_data(create_connection(False, database_name), parse_products(products_file))
+
 
 if __name__ == '__main__':
     main()
