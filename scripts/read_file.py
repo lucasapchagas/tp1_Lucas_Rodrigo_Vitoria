@@ -1,4 +1,3 @@
-import json
 
 def handle_special_category_format(cat):
     try:

@@ -4,18 +4,18 @@ class SQLC:
 
     CRIAR_DATABASE = """CREATE DATABASE {};"""
 
-    TABELA_PRODUTO = """CREATE TABLE IF NOT EXISTS public.produto (
-        asin character varying(15) COLLATE pg_catalog."default" NOT NULL,
-        titulo character varying(500) COLLATE pg_catalog."default" NOT NULL,
-        grupo character varying(20) COLLATE pg_catalog."default" NOT NULL,
+    TABELA_PRODUTO = """CREATE TABLE IF NOT EXISTS produto (
+        asin VARCHAR(10) NOT NULL,
+        titulo text,
+        grupo text,
         rank_vendas integer NOT NULL,
         PRIMARY KEY (asin)
     );
     """
 
     TABELA_SIMILAR = """CREATE TABLE IF NOT EXISTS produto_similar (
-        asin VARCHAR(15) NOT NULL,
-        asin_similar VARCHAR(15) NOT NULL,
+        asin VARCHAR(10) NOT NULL,
+        asin_similar VARCHAR(10) NOT NULL,
         PRIMARY KEY (asin, asin_similar),
         FOREIGN KEY (asin) REFERENCES produto(asin) ON DELETE CASCADE
     );
@@ -23,13 +23,13 @@ class SQLC:
 
     TABELA_CATEGORIAS = """CREATE TABLE IF NOT EXISTS categorias (
         categoria_id integer NOT NULL,
-        categoria_nome character varying(100) NOT NULL,
+        categoria_nome text NOT NULL,
         PRIMARY KEY (categoria_id)
     );
     """
 
     TABELA_P_CATEGORIA = """CREATE TABLE IF NOT EXISTS produto_categoria (
-        asin character varying(15) NOT NULL,
+        asin VARCHAR(10) NOT NULL,
         categoria_id integer NOT NULL,
         PRIMARY KEY (asin, categoria_id),
         FOREIGN KEY (asin) REFERENCES produto(asin) ON DELETE CASCADE,
@@ -39,8 +39,8 @@ class SQLC:
 
     TABELA_AVALIACOES = """CREATE TABLE IF NOT EXISTS avaliacoes (
         avaliacao_id SERIAL NOT NULL,
-        asin character varying(15) NOT NULL,
-        id_usuario character varying(15) NOT NULL,
+        asin VARCHAR(10) NOT NULL,
+        id_usuario VARCHAR(15)  NOT NULL,
         data date NOT NULL,
         nota integer NOT NULL,
         votos integer NOT NULL,
